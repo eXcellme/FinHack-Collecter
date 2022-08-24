@@ -130,9 +130,44 @@ class tsSHelper:
                         return
             #print(table+'-'+str(len(df))+'-'+day)
 
-            i=i+1        
-            
-    
+            i=i+1
+
+
+    def getDataWithArgs(pro, api, table, db, ts_code='', trade_date='', **kwargs):
+        engine = mysql.getDBEngine(db)
+
+        f = getattr(pro, api)
+        while True:
+            try:
+                df = f(trade_date=trade_date, ts_code=ts_code, **kwargs)
+                if (not df.empty):
+                    res = df.to_sql(table, engine, index=False, if_exists='append', chunksize=5000)
+                break
+            except Exception as e:
+                if "每分钟最多访问" in str(e):
+                    print(api + ":触发限流，等待重试。\n" + str(e))
+                    time.sleep(15)
+                    continue
+
+                if "每天最多访问" in str(e) or "每小时最多访问" in str(e):
+                    print(api + ":今日权限用完。\n" + str(e))
+                    return
+
+
+                elif "您没有访问该接口的权限" in str(e):
+                    print(api + ":没有访问该接口的权限。\n" + str(e))
+                    return
+
+                else:
+                    info = traceback.format_exc()
+                    alert.send(api, '函数异常', str(info))
+
+                    print(api + "\n" + info)
+                    return
+            # print(table+'-'+str(len(df))+'-'+day)
+
+
+
     def getDataWithCodeAndClear(pro,api,table,db):
         #mysql.truncateTable(table,db)
         mysql.exec("drop table if exists "+table+"_tmp",db)
